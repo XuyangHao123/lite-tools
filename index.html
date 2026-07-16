@@ -9,6 +9,25 @@
     <title>Lite工具站 - 免费在线工具集合</title>
   </head>
   <body>
+    <!-- GitHub Pages SPA 路由恢复：404.html 会把路径转为 ?/path，这里还原 -->
+    <script>
+      (function (l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search
+            .slice(1)
+            .split('&')
+            .map(function (s) {
+              return s.replace(/~and~/g, '&')
+            })
+            .join('?')
+          window.history.replaceState(
+            null,
+            null,
+            l.pathname + decoded + l.hash
+          )
+        }
+      })(window.location)
+    </script>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>
