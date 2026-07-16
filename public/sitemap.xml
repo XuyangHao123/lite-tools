@@ -6,6 +6,38 @@
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
+  <!-- PDF 工具 -->
+  <url>
+    <loc>https://xuyanghao123.github.io/lite-tools/pdf-merge</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://xuyanghao123.github.io/lite-tools/pdf-split</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://xuyanghao123.github.io/lite-tools/pdf-compress</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://xuyanghao123.github.io/lite-tools/pdf-rotate</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://xuyanghao123.github.io/lite-tools/pdf-to-image</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://xuyanghao123.github.io/lite-tools/img-to-pdf</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <!-- 生成器工具 -->
   <url>
     <loc>https://xuyanghao123.github.io/lite-tools/qr-generator</loc>
     <changefreq>monthly</changefreq>
@@ -16,6 +48,7 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+  <!-- 文本工具 -->
   <url>
     <loc>https://xuyanghao123.github.io/lite-tools/base64</loc>
     <changefreq>monthly</changefreq>
@@ -26,6 +59,7 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+  <!-- 计算器工具 -->
   <url>
     <loc>https://xuyanghao123.github.io/lite-tools/unit-converter</loc>
     <changefreq>monthly</changefreq>

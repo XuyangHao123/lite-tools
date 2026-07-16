@@ -8,37 +8,37 @@
       </p>
     </section>
 
-    <!-- 工具卡片列表 -->
-    <section class="tools-grid">
-      <router-link
-        v-for="tool in tools"
-        :key="tool.key"
-        :to="`/${tool.key}`"
-        class="tool-card"
-      >
-        <div class="tool-card-icon">
-          <el-icon :size="32"><component :is="tool.icon" /></el-icon>
-        </div>
-        <div class="tool-card-info">
-          <h2 class="tool-card-name">{{ tool.name }}</h2>
-          <p class="tool-card-desc">{{ tool.desc }}</p>
-        </div>
-      </router-link>
+    <!-- 按分类展示工具 -->
+    <section v-for="cat in categories" :key="cat" class="tool-section">
+      <h2 class="section-title">{{ cat }}</h2>
+      <div class="tools-grid">
+        <router-link
+          v-for="tool in toolsByCategory(cat)"
+          :key="tool.key"
+          :to="`/${tool.key}`"
+          class="tool-card"
+        >
+          <div class="tool-card-icon">
+            <el-icon :size="28"><component :is="tool.icon" /></el-icon>
+          </div>
+          <div class="tool-card-info">
+            <h3 class="tool-card-name">{{ tool.name }}</h3>
+            <p class="tool-card-desc">{{ tool.desc }}</p>
+          </div>
+        </router-link>
+      </div>
     </section>
-
-    <!-- 工具数量少时的占位提示 -->
-    <p v-if="tools.length < 3" class="coming-soon">
-      更多工具持续上线中，敬请期待 🚀
-    </p>
   </div>
 </template>
 
 <script setup>
-import { tools } from '@/data/tools'
-import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+import { tools, getCategories } from '@/data/tools'
 
-// 注册图标组件，供模板中 <component :is="tool.icon" /> 使用
-const availableIcons = ElementPlusIconsVue
+const categories = getCategories()
+
+function toolsByCategory(cat) {
+  return tools.filter((t) => t.category === cat)
+}
 </script>
 
 <style scoped>
@@ -48,11 +48,11 @@ const availableIcons = ElementPlusIconsVue
 
 .hero {
   text-align: center;
-  padding: 48px 16px 32px;
+  padding: 40px 16px 32px;
 }
 
 .hero-title {
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 800;
   color: #303133;
   margin: 0 0 12px;
@@ -64,11 +64,23 @@ const availableIcons = ElementPlusIconsVue
   margin: 0;
 }
 
+.tool-section {
+  margin-bottom: 32px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #303133;
+  margin: 0 0 16px;
+  padding-left: 12px;
+  border-left: 4px solid #409eff;
+}
+
 .tools-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
-  padding: 0 0 32px;
 }
 
 .tool-card {
@@ -119,16 +131,9 @@ const availableIcons = ElementPlusIconsVue
   overflow: hidden;
 }
 
-.coming-soon {
-  text-align: center;
-  color: #c0c4cc;
-  font-size: 14px;
-  padding: 16px 0;
-}
-
 @media (max-width: 768px) {
   .hero-title {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .tools-grid {
