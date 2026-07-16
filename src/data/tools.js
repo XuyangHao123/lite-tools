@@ -51,8 +51,8 @@ export const tools = [
   {
     key: 'pdf-to-image',
     name: 'PDF 转图片',
-    desc: '免费在线将PDF每页转换为JPG/PNG图片，支持选择分辨率，本地处理不上传。',
-    keywords: 'PDF转图片,PDF转JPG,PDF转PNG,在线PDF工具',
+    desc: '免费在线将PDF每页转换为JPG/PNG/SVG矢量图，支持选择分辨率，矢量图可无损缩放，本地处理不上传。',
+    keywords: 'PDF转图片,PDF转JPG,PDF转PNG,PDF转SVG,PDF转矢量图,在线PDF工具',
     icon: 'Picture',
     category: 'PDF工具',
     component: () => import('@/views/tools/PdfToImage.vue')

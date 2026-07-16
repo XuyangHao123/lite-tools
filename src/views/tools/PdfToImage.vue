@@ -1,5 +1,5 @@
 <template>
-  <ToolLayout title="PDF 转图片" desc="免费在线将PDF每页转换为JPG/PNG图片，支持选择分辨率，本地处理不上传。">
+  <ToolLayout title="PDF 转图片" desc="免费在线将PDF每页转换为JPG/PNG/SVG矢量图，支持选择分辨率，本地处理不上传。">
     <div class="pdf-to-img">
       <FileUploader
         ref="uploaderRef"
@@ -20,11 +20,16 @@
           <el-radio-group v-model="format">
             <el-radio-button value="png">PNG（无损）</el-radio-button>
             <el-radio-button value="jpg">JPG（更小）</el-radio-button>
+            <el-radio-button value="svg">SVG（矢量图）</el-radio-button>
           </el-radio-group>
+          <p v-if="format === 'svg'" class="config-tip svg-tip">
+            ⚡ SVG 为矢量格式，可无损缩放、可编辑，适合图表/矢量插画类 PDF。
+            含大量光栅图片的 PDF 转 SVG 后体积可能较大。
+          </p>
         </div>
 
-        <!-- 分辨率 -->
-        <div class="config-section">
+        <!-- 分辨率（SVG 模式隐藏，矢量图无需分辨率） -->
+        <div v-if="format !== 'svg'" class="config-section">
           <label class="config-title">清晰度（缩放倍数）</label>
           <el-radio-group v-model="scale">
             <el-radio-button :value="1">标准 (1x)</el-radio-button>
@@ -44,10 +49,14 @@
 
       <!-- 结果 -->
       <div v-if="results.length" class="result-box">
-        <el-alert :title="`转换成功！共生成 ${results.length} 张图片`" type="success" show-icon :closable="false" />
+        <el-alert :title="`转换成功！共生成 ${results.length} 个文件`" type="success" show-icon :closable="false" />
         <div class="result-grid">
           <div v-for="(r, i) in results" :key="i" class="result-item">
-            <img :src="r.url" :alt="r.name" class="result-thumb" />
+            <img v-if="r.type === 'image'" :src="r.url" :alt="r.name" class="result-thumb" />
+            <div v-else class="svg-thumb">
+              <el-icon :size="32"><Document /></el-icon>
+              <span>SVG</span>
+            </div>
             <span class="result-name">{{ r.name }}</span>
             <el-button size="small" :icon="Download" @click="downloadOne(r)">下载</el-button>
           </div>
@@ -61,13 +70,14 @@
 <script setup>
 import { ref, watch, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Download } from '@element-plus/icons-vue'
+import { Download, Document } from '@element-plus/icons-vue'
 import * as pdfjsLib from 'pdfjs-dist'
+import C2S from 'canvas2svg'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import FileUploader from '@/components/FileUploader.vue'
 import ToolLayout from '@/components/ToolLayout.vue'
 
-// 配置 worker
+// 配置 pdfjs worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
 const fileList = ref([])
@@ -95,6 +105,50 @@ watch(fileList, async (files) => {
   }
 })
 
+/**
+ * 将 PDF 页面渲染为 SVG 矢量图
+ * 原理：用 canvas2svg 创建模拟 canvas 上下文，
+ * 让 pdfjs 渲染到该上下文，所有绘制操作被转为 SVG 路径
+ */
+async function renderPageToSvg(page) {
+  const viewport = page.getViewport({ scale: 1 })
+  const width = viewport.width
+  const height = viewport.height
+
+  // canvas2svg 模拟 canvas，收集绘制指令生成 SVG
+  const c2s = new C2S({
+    width: Math.ceil(width),
+    height: Math.ceil(height)
+  })
+
+  await page.render({
+    canvasContext: c2s,
+    viewport
+  }).promise
+
+  // 获取生成的 SVG 字符串
+  let svgString = c2s.getSerializedSvg()
+
+  // 补全 xmlns 属性（canvas2svg 有时不带）
+  if (!svgString.includes('xmlns=')) {
+    svgString = svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
+  }
+
+  return svgString
+}
+
+/** 渲染为光栅图（PNG/JPG） */
+async function renderPageToCanvas(page, renderScale) {
+  const viewport = page.getViewport({ scale: renderScale })
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  canvas.width = viewport.width
+  canvas.height = viewport.height
+
+  await page.render({ canvasContext: ctx, viewport }).promise
+  return canvas
+}
+
 async function convertToImages() {
   if (fileList.length !== 1) return
   processing.value = true
@@ -107,28 +161,34 @@ async function convertToImages() {
     for (let i = 1; i <= pdf.numPages; i++) {
       progress.value = `(${i}/${pdf.numPages})`
       const page = await pdf.getPage(i)
-      const viewport = page.getViewport({ scale: scale.value })
 
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      canvas.width = viewport.width
-      canvas.height = viewport.height
-
-      await page.render({ canvasContext: ctx, viewport }).promise
-
-      const mimeType = format.value === 'png' ? 'image/png' : 'image/jpeg'
-      const quality = format.value === 'jpg' ? 0.92 : 1
-      const dataUrl = canvas.toDataURL(mimeType, quality)
-
-      results.value.push({
-        name: `page-${i}.${format.value}`,
-        url: dataUrl
-      })
+      if (format.value === 'svg') {
+        // 矢量 SVG 输出
+        const svgString = await renderPageToSvg(page)
+        const blob = new Blob([svgString], { type: 'image/svg+xml' })
+        results.value.push({
+          name: `page-${i}.svg`,
+          url: URL.createObjectURL(blob),
+          type: 'svg'
+        })
+      } else {
+        // 光栅图输出
+        const canvas = await renderPageToCanvas(page, scale.value)
+        const mimeType = format.value === 'png' ? 'image/png' : 'image/jpeg'
+        const quality = format.value === 'jpg' ? 0.92 : 1
+        const dataUrl = canvas.toDataURL(mimeType, quality)
+        results.value.push({
+          name: `page-${i}.${format.value}`,
+          url: dataUrl,
+          type: 'image'
+        })
+      }
     }
 
     ElMessage.success('转换完成')
   } catch (e) {
-    ElMessage.error('转换失败：' + e.message)
+    console.error(e)
+    ElMessage.error('转换失败：' + (e.message || '未知错误'))
   } finally {
     processing.value = false
     progress.value = ''
@@ -184,6 +244,20 @@ onUnmounted(() => {
   color: #303133;
 }
 
+.config-tip {
+  font-size: 12px;
+  color: #909399;
+  margin: 0;
+}
+
+.svg-tip {
+  color: #e6a23c;
+  background: #fdf6ec;
+  padding: 8px 12px;
+  border-radius: 4px;
+  line-height: 1.6;
+}
+
 .action-bar {
   display: flex;
   gap: 12px;
@@ -217,6 +291,21 @@ onUnmounted(() => {
   object-fit: contain;
   border-radius: 4px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.svg-thumb {
+  width: 100%;
+  height: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #ecf5ff;
+  color: #409eff;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .result-name {
