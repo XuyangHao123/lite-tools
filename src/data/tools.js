@@ -58,6 +58,15 @@ export const tools = [
     component: () => import('@/views/tools/PdfToImage.vue')
   },
   {
+    key: 'pdf-to-vector',
+    name: 'PDF 转矢量图',
+    desc: '免费在线将PDF转换为SVG/DXF/EPS矢量图格式，矢量内容可无损缩放、可编辑，适合CAD/印刷/设计，本地处理。',
+    keywords: 'PDF转矢量图,PDF转SVG,PDF转DXF,PDF转EPS,PDF转CAD,在线PDF工具',
+    icon: 'Aim',
+    category: 'PDF工具',
+    component: () => import('@/views/tools/PdfToVector.vue')
+  },
+  {
     key: 'img-to-pdf',
     name: '图片转 PDF',
     desc: '免费在线将图片(JPG/PNG)转换为PDF文件，支持多图合并、页面方向设置，本地处理。',
