@@ -2,12 +2,37 @@
 <!-- 站点地图，新增工具后在此追加 <url> 条目 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://your-username.github.io/lite-tools/</loc>
+    <loc>https://xuyanghao123.github.io/lite-tools/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://your-username.github.io/lite-tools/qr-generator</loc>
+    <loc>https://xuyanghao123.github.io/lite-tools/qr-generator</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://xuyanghao123.github.io/lite-tools/password-generator</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://xuyanghao123.github.io/lite-tools/base64</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://xuyanghao123.github.io/lite-tools/json-formatter</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://xuyanghao123.github.io/lite-tools/unit-converter</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://xuyanghao123.github.io/lite-tools/bmi-calculator</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>

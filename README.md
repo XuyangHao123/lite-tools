@@ -26,7 +26,7 @@ npm run preview  # 预览构建产物
 2. 将代码推送到 main 分支
 3. GitHub Actions 会自动构建并部署
 4. 在仓库 Settings → Pages 中确认 Source 为 "GitHub Actions"
-5. 访问 `https://你的用户名.github.io/lite-tools/`
+5. 访问 `https://XuyangHao123.github.io/lite-tools/`
 
 > 部署前需修改以下文件中的域名占位符 `your-username`：
 > - `public/robots.txt`
