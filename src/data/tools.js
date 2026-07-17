@@ -112,6 +112,33 @@ export const tools = [
     category: '图片工具',
     component: () => import('@/views/tools/ColorPicker.vue')
   },
+  {
+    key: 'image-watermark',
+    name: '图片加水印',
+    desc: '免费在线给图片添加文字水印，支持自定义文字、位置、颜色、透明度、平铺，本地处理不上传。',
+    keywords: '图片水印,加水印,图片加文字,在线水印工具',
+    icon: 'Stamp',
+    category: '图片工具',
+    component: () => import('@/views/tools/ImageWatermark.vue')
+  },
+  {
+    key: 'image-merge',
+    name: '图片拼接',
+    desc: '免费在线将多张图片拼接为一张，支持横向/纵向拼接、对齐方式、间距设置，本地处理不上传。',
+    keywords: '图片拼接,图片合并,横向拼接,纵向拼接,在线图片工具',
+    icon: 'Grid',
+    category: '图片工具',
+    component: () => import('@/views/tools/ImageMerge.vue')
+  },
+  {
+    key: 'image-to-base64',
+    name: '图片转 Base64',
+    desc: '免费在线将图片转换为Base64编码，支持Data URL/CSS background格式，可直接用于HTML/CSS，本地处理。',
+    keywords: '图片转Base64,Base64编码,图片编码,Data URL,在线工具',
+    icon: 'Document',
+    category: '图片工具',
+    component: () => import('@/views/tools/ImageToBase64.vue')
+  },
   // ===== 文本工具 =====
   {
     key: 'word-count',
@@ -158,6 +185,51 @@ export const tools = [
     category: '文本工具',
     component: () => import('@/views/tools/RegexTester.vue')
   },
+  {
+    key: 'text-diff',
+    name: '文本对比',
+    desc: '免费在线文本对比工具，逐行比较两段文本差异，高亮显示新增/删除/修改行，本地处理。',
+    keywords: '文本对比,文本差异,文本比较,diff,在线文本工具',
+    icon: 'Switch',
+    category: '文本工具',
+    component: () => import('@/views/tools/TextDiff.vue')
+  },
+  {
+    key: 'code-minifier',
+    name: '代码压缩',
+    desc: '免费在线HTML/CSS/JS代码压缩工具，去除注释和多余空格，减小文件体积，本地处理。',
+    keywords: '代码压缩,HTML压缩,CSS压缩,JS压缩,代码minify,在线工具',
+    icon: 'Compress',
+    category: '文本工具',
+    component: () => import('@/views/tools/CodeMinifier.vue')
+  },
+  {
+    key: 'pinyin-converter',
+    name: '汉字转拼音',
+    desc: '免费在线汉字转拼音工具，支持带声调、无声调、首字母模式，多音字识别，本地处理。',
+    keywords: '汉字转拼音,拼音转换,中文转拼音,首字母,在线工具',
+    icon: 'EditPen',
+    category: '文本工具',
+    component: () => import('@/views/tools/PinyinConverter.vue')
+  },
+  {
+    key: 'base-converter',
+    name: '进制转换',
+    desc: '免费在线进制转换工具，支持二进制/八进制/十进制/十六进制互转，实时同步，本地处理。',
+    keywords: '进制转换,二进制,八进制,十进制,十六进制,在线工具',
+    icon: 'Switch',
+    category: '文本工具',
+    component: () => import('@/views/tools/BaseConverter.vue')
+  },
+  {
+    key: 'css-gradient',
+    name: 'CSS 渐变生成器',
+    desc: '免费在线CSS渐变生成器，支持线性/径向渐变，可视化调色，一键复制代码，本地处理。',
+    keywords: 'CSS渐变,渐变生成器,linear-gradient,radial-gradient,在线工具',
+    icon: 'Brush',
+    category: '文本工具',
+    component: () => import('@/views/tools/CssGradient.vue')
+  },
   // ===== 生成器工具 =====
   {
     key: 'qr-generator',
@@ -185,6 +257,15 @@ export const tools = [
     icon: 'Key',
     category: '生成器',
     component: () => import('@/views/tools/UuidGenerator.vue')
+  },
+  {
+    key: 'qr-decoder',
+    name: '二维码识别',
+    desc: '免费在线识别/解码图片中的二维码，支持拖拽上传，提取二维码内容，本地处理不上传。',
+    keywords: '二维码识别,二维码解码,QR码识别,图片二维码,在线工具',
+    icon: 'Search',
+    category: '生成器',
+    component: () => import('@/views/tools/QrDecoder.vue')
   },
   // ===== 计算器工具 =====
   {
@@ -222,6 +303,15 @@ export const tools = [
     icon: 'Timer',
     category: '计算器',
     component: () => import('@/views/tools/TimestampConverter.vue')
+  },
+  {
+    key: 'date-calculator',
+    name: '日期计算器',
+    desc: '免费在线日期计算工具，计算两个日期间隔天数、日期加减天数、今日信息，本地处理。',
+    keywords: '日期计算,日期间隔,天数计算,日期加减,在线工具',
+    icon: 'Calendar',
+    category: '计算器',
+    component: () => import('@/views/tools/DateCalculator.vue')
   }
 ]
 
