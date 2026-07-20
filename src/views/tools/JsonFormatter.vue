@@ -31,6 +31,28 @@
         />
       </div>
 
+      <!-- 树形展示区：可按节点折叠 -->
+      <div class="tree-panel">
+        <div class="tree-header">
+          <span class="panel-title">格式化结果（树形）</span>
+          <div class="tree-actions" v-if="treeData">
+            <el-button size="small" @click="expandAll">全部展开</el-button>
+            <el-button size="small" @click="collapseAll">全部收起</el-button>
+          </div>
+        </div>
+        <div class="tree-body" v-if="treeData">
+          <JsonTree
+            ref="treeRef"
+            :data="treeData"
+            :indent-size="indent"
+            :default-expand="defaultExpand"
+          />
+        </div>
+        <div class="tree-placeholder" v-else>
+          格式化成功后在此显示可折叠树形结构（含错误的 JSON 仅在上方文本框做容错排版）
+        </div>
+      </div>
+
       <!-- 错误提示 -->
       <el-alert
         v-if="error"
@@ -59,6 +81,7 @@ import { ref, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { CopyDocument } from '@element-plus/icons-vue'
 import ToolLayout from '@/components/ToolLayout.vue'
+import JsonTree from '@/components/JsonTree.vue'
 
 const input = ref('')
 const error = ref('')
@@ -66,6 +89,9 @@ const successMsg = ref('')
 const indent = ref(2)
 const errorPos = ref(null)
 const textareaRef = ref(null)
+const treeData = ref(null)
+const defaultExpand = ref(false)
+const treeRef = ref(null)
 
 function clearMessages() {
   error.value = ''
@@ -270,10 +296,12 @@ function format() {
   try {
     const parsed = JSON.parse(input.value)
     input.value = JSON.stringify(parsed, null, indent.value)
+    treeData.value = parsed
     successMsg.value = '格式化成功'
     return
   } catch (e) {
-    // 进入容错排版分支
+    // 进入容错排版分支（JSON 有错时无法构建树）
+    treeData.value = null
     const msg = e.message || String(e)
     const pos = extractErrorPosition(msg)
     const { text: formatted, errorOffset } = tolerantFormat(input.value, indent.value)
@@ -309,8 +337,10 @@ function minify() {
   try {
     const parsed = JSON.parse(input.value)
     input.value = JSON.stringify(parsed)
+    treeData.value = parsed
     successMsg.value = '压缩成功'
   } catch (e) {
+    treeData.value = null
     const msg = e.message || String(e)
     error.value = `JSON 解析错误：${msg}`
     const pos = extractErrorPosition(msg)
@@ -359,7 +389,20 @@ async function copyOutput() {
 
 function clear() {
   input.value = ''
+  treeData.value = null
   clearMessages()
+}
+
+/** 全部展开：通过切换 defaultExpand 触发 watch 重置，再调用 setAll 兜底 */
+function expandAll() {
+  defaultExpand.value = true
+  nextTick(() => treeRef.value?.setAll(true))
+}
+
+/** 全部收起 */
+function collapseAll() {
+  defaultExpand.value = false
+  nextTick(() => treeRef.value?.setAll(false))
 }
 </script>
 
@@ -418,6 +461,45 @@ function clear() {
   font-family: 'Courier New', Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.tree-panel {
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #ebeef5;
+  background: #fff;
+}
+
+.tree-header .panel-title {
+  margin: 0;
+}
+
+.tree-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tree-body {
+  padding: 12px 14px;
+  max-height: 480px;
+  overflow: auto;
+  font-family: 'Courier New', Consolas, monospace;
+}
+
+.tree-placeholder {
+  padding: 24px 14px;
+  color: #c0c4cc;
+  font-size: 13px;
+  text-align: center;
 }
 
 .tool-tip {
