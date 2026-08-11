@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://XuyangHao123.github.io/lite-tools/sitemap.xml
+Sitemap: https://xuyanghao123.github.io/lite-tools/sitemap.xml

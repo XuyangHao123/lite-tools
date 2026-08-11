@@ -1,5 +1,9 @@
 <template>
-  <ToolLayout title="PDF 拆分" desc="免费在线拆分PDF文件，支持按页码范围提取，本地处理不上传服务器。">
+  <ToolLayout
+    title="PDF 拆分"
+    desc="免费在线拆分PDF文件，支持按页码范围提取、每页拆分、按间隔拆分，批量打包下载，本地处理不上传服务器。"
+    fav-key="pdf-split"
+  >
     <div class="pdf-split">
       <FileUploader
         ref="uploaderRef"
@@ -10,26 +14,29 @@
       />
 
       <template v-if="fileList.length === 1">
-        <!-- 页码信息 -->
         <div class="page-info">
           <el-tag type="info" size="large">共 {{ totalPages }} 页</el-tag>
         </div>
 
         <!-- 拆分模式 -->
         <el-radio-group v-model="splitMode" class="split-mode">
-          <el-radio-button value="range">按页码范围提取</el-radio-button>
+          <el-radio-button value="range">按页码范围拆分</el-radio-button>
           <el-radio-button value="each">每页拆分为单独文件</el-radio-button>
           <el-radio-button value="interval">每隔N页拆分</el-radio-button>
         </el-radio-group>
 
         <!-- 按页码范围 -->
-        <div v-if="splitMode === 'range'" class="config-row">
+        <div v-if="splitMode === 'range'" class="config-section">
+          <label class="config-title">页码范围</label>
           <el-input
             v-model="pageRange"
-            placeholder="如 1-3,5,7-9（从第1页开始）"
+            placeholder="如 1-3,5,7-9（每段一个文件）"
             size="large"
           />
-          <p class="config-tip">输入页码范围，用逗号分隔。如 1-3,5,7-9 表示提取1-3页、第5页、7-9页。</p>
+          <p class="config-tip">
+            用逗号分隔，每个逗号分隔段产生一个文件。如 1-3,5,7-9 产生 3 个文件：
+            [1~3 页合并]、[第 5 页]、[7~9 页合并]。
+          </p>
         </div>
 
         <!-- 每隔N页 -->
@@ -38,151 +45,156 @@
           <span class="config-label">页 / 文件</span>
         </div>
 
+        <!-- 文件名前缀 -->
+        <div class="config-section">
+          <label class="config-title">文件名前缀</label>
+          <el-input
+            v-model="namePrefix"
+            :placeholder="`留空则使用原文件名（如 ${defaultPrefix}）`"
+            size="default"
+          />
+          <p class="config-tip">输出文件名形如「前缀-pages-1-3.pdf」「前缀-page-5.pdf」</p>
+        </div>
+
         <!-- 操作按钮 -->
         <div class="action-bar">
           <el-button type="primary" size="large" :loading="processing" @click="splitPdf">
             {{ processing ? '拆分中...' : '开始拆分' }}
           </el-button>
-          <el-button size="large" @click="clearAll">清空</el-button>
+          <el-button size="large" @click="onClear">清空</el-button>
         </div>
       </template>
 
-      <!-- 下载结果 -->
+      <!-- 结果 -->
       <div v-if="results.length" class="result-box">
-        <el-alert title="拆分成功！" type="success" show-icon :closable="false" />
+        <el-alert
+          :title="`拆分成功！共生成 ${results.length} 个文件`"
+          type="success"
+          show-icon
+          :closable="false"
+        />
         <div class="result-list">
           <div v-for="(r, i) in results" :key="i" class="result-item">
             <span class="result-name">{{ r.name }}</span>
             <el-button size="small" :icon="Download" @click="downloadOne(r)">下载</el-button>
           </div>
         </div>
-        <el-button type="primary" @click="downloadAll" v-if="results.length > 1">全部下载</el-button>
+        <el-button type="primary" :icon="Files" @click="downloadAllZip" v-if="results.length > 1">
+          打包下载全部（ZIP）
+        </el-button>
       </div>
     </div>
   </ToolLayout>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Download } from '@element-plus/icons-vue'
-import { PDFDocument } from 'pdf-lib'
+import { ref, computed, watch } from 'vue'
+import { Download, Files } from '@element-plus/icons-vue'
 import FileUploader from '@/components/FileUploader.vue'
 import ToolLayout from '@/components/ToolLayout.vue'
+import { useToolState } from '@/composables/useToolState'
+import { downloadBlob, downloadZip } from '@/composables/useDownload'
+import { loadPdfLib, usePdfPageCount, parsePageRange } from '@/composables/usePdfEngine'
+import { stripExt } from '@/utils/format'
 
-const fileList = ref([])
-const uploaderRef = ref()
-const totalPages = ref(0)
+const { fileList, uploaderRef, processing, run, clearAll } = useToolState()
+const { totalPages, read } = usePdfPageCount()
+
 const splitMode = ref('range')
 const pageRange = ref('')
 const interval = ref(1)
-const processing = ref(false)
-const results = ref([]) // [{name, url}]
+const namePrefix = ref('')
+const results = ref([]) // [{ blob, name }]
 
-// 文件变化时读取页数
+const defaultPrefix = computed(() =>
+  fileList.value.length ? stripExt(fileList.value[0].name) || 'split' : 'split'
+)
+
 watch(fileList, async (files) => {
   results.value = []
-  if (files.length === 0) {
+  if (!files.length) {
     totalPages.value = 0
     return
   }
-  try {
-    const bytes = await files[0].raw.arrayBuffer()
-    const pdf = await PDFDocument.load(bytes)
-    totalPages.value = pdf.getPageCount()
-  } catch {
-    totalPages.value = 0
-    ElMessage.error('无法读取 PDF 文件')
-  }
+  await read(files[0])
 })
 
-/** 解析页码范围字符串，如 "1-3,5,7-9" → [1,2,3,5,7,8,9] */
-function parseRange(str, max) {
-  const pages = []
-  const parts = str.split(',').map((s) => s.trim())
-  for (const part of parts) {
-    if (part.includes('-')) {
-      const [a, b] = part.split('-').map((n) => parseInt(n.trim()))
-      if (isNaN(a) || isNaN(b) || a < 1 || b > max || a > b) continue
-      for (let i = a; i <= b; i++) pages.push(i)
-    } else {
-      const n = parseInt(part)
-      if (!isNaN(n) && n >= 1 && n <= max) pages.push(n)
-    }
-  }
-  return [...new Set(pages)].sort((a, b) => a - b)
+function realPrefix() {
+  const p = namePrefix.value.trim()
+  return p || defaultPrefix.value
 }
 
 async function splitPdf() {
-  if (fileList.length !== 1) return
-  processing.value = true
+  if (fileList.value.length !== 1) return
   results.value = []
-
-  try {
+  await run(async () => {
+    const { PDFDocument } = await loadPdfLib()
     const bytes = await fileList.value[0].raw.arrayBuffer()
-    const srcPdf = await PDFDocument.load(bytes)
-    const total = srcPdf.getPageCount()
+    const src = await PDFDocument.load(bytes, { ignoreEncryption: true })
+    const total = src.getPageCount()
+    const base = realPrefix()
 
-    let splitConfigs = [] // [{name, pages: [0-based indices]}]
+    const configs = [] // [{ name, indices:[0-based] }]
 
     if (splitMode.value === 'range') {
-      const pages = parseRange(pageRange.value, total)
-      if (pages.length === 0) {
-        ElMessage.warning('请输入有效的页码范围')
-        processing.value = false
-        return
+      const segs = pageRange.value
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      if (!segs.length) throw new Error('请输入有效的页码范围')
+      for (const seg of segs) {
+        const pages = parsePageRange(seg, total)
+        if (!pages.length) throw new Error(`范围段「${seg}」无效`)
+        configs.push({
+          name: `${base}-pages-${pages[0]}-${pages[pages.length - 1]}.pdf`,
+          indices: pages.map((p) => p - 1)
+        })
       }
-      splitConfigs.push({ name: `pages-${pages[0]}-${pages[pages.length - 1]}.pdf`, pages: pages.map((p) => p - 1) })
     } else if (splitMode.value === 'each') {
       for (let i = 0; i < total; i++) {
-        splitConfigs.push({ name: `page-${i + 1}.pdf`, pages: [i] })
+        configs.push({ name: `${base}-page-${i + 1}.pdf`, indices: [i] })
       }
-    } else if (splitMode.value === 'interval') {
-      const step = interval.value
+    } else {
+      const step = Math.max(1, interval.value)
       for (let i = 0; i < total; i += step) {
         const end = Math.min(i + step, total)
-        const pages = []
-        for (let j = i; j < end; j++) pages.push(j)
-        splitConfigs.push({ name: `pages-${i + 1}-${end}.pdf`, pages })
+        const indices = []
+        for (let j = i; j < end; j++) indices.push(j)
+        configs.push({ name: `${base}-pages-${i + 1}-${end}.pdf`, indices })
       }
     }
 
-    for (const config of splitConfigs) {
-      const newPdf = await PDFDocument.create()
-      const copied = await newPdf.copyPages(srcPdf, config.pages)
-      copied.forEach((p) => newPdf.addPage(p))
-      const outBytes = await newPdf.save()
-      const blob = new Blob([outBytes], { type: 'application/pdf' })
-      results.value.push({ name: config.name, url: URL.createObjectURL(blob) })
+    for (const c of configs) {
+      const np = await PDFDocument.create()
+      const copied = await np.copyPages(src, c.indices)
+      copied.forEach((p) => np.addPage(p))
+      const out = await np.save()
+      results.value.push({ blob: new Blob([out], { type: 'application/pdf' }), name: c.name })
     }
 
     ElMessage.success(`拆分完成，共生成 ${results.value.length} 个文件`)
-  } catch (e) {
-    ElMessage.error('拆分失败：' + e.message)
-  } finally {
-    processing.value = false
-  }
+  }, '拆分')
 }
 
 function downloadOne(r) {
-  const link = document.createElement('a')
-  link.href = r.url
-  link.download = r.name
-  link.click()
+  downloadBlob(r.blob, r.name)
 }
 
-function downloadAll() {
-  results.value.forEach((r, i) => {
-    setTimeout(() => downloadOne(r), i * 300)
+async function downloadAllZip() {
+  if (!results.value.length) return
+  await downloadZip(
+    results.value.map((r) => ({ blob: r.blob, name: r.name })),
+    `${realPrefix()}.zip`
+  )
+}
+
+function onClear() {
+  clearAll(() => {
+    results.value = []
+    totalPages.value = 0
+    pageRange.value = ''
+    namePrefix.value = ''
   })
-}
-
-function clearAll() {
-  uploaderRef.value?.clearFiles()
-  fileList.value = []
-  results.value = []
-  totalPages.value = 0
-  pageRange.value = ''
 }
 </script>
 
@@ -202,6 +214,18 @@ function clearAll() {
   flex-wrap: wrap;
 }
 
+.config-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
 .config-row {
   display: flex;
   align-items: center;
@@ -210,13 +234,13 @@ function clearAll() {
 
 .config-label {
   font-size: 14px;
-  color: #606266;
+  color: var(--color-text-regular);
 }
 
 .config-tip {
   font-size: 12px;
-  color: #909399;
-  margin: 4px 0 0;
+  color: var(--color-text-secondary);
+  margin: 0;
 }
 
 .action-bar {
@@ -241,14 +265,19 @@ function clearAll() {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: #f5f7fa;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
 }
 
 .result-name {
-  font-size: 14px;
-  color: #303133;
+  font-size: 13px;
+  color: var(--color-text-primary);
   font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 8px;
 }
 
 @media (max-width: 768px) {

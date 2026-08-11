@@ -28,18 +28,21 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     chunkSizeWarningLimit: 1000,
-    // 将第三方库拆分为独立 chunk，优化加载
+    // chunk 拆分：仅手动固定 vue 核心到 vue-vendor，
+    // 其余第三方库交给 Rollup 按 import 图自动分片。
+    // 之前用对象式/函数式 manualChunks 强制把 pdf-lib 等单独成 chunk，
+    // 会导致 Rollup 把被多 chunk 共享的瞬时依赖并进该 chunk，
+    // 进而让入口 chunk 静态 import 它 → 首页被预加载 429KB pdf-lib。
+    // 自动分片配合路由懒加载，能让重库只在访问对应工具时才加载。
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vue-vendor': ['vue', 'vue-router'],
-          'pdf-lib': ['pdf-lib'],
-          'pdfjs': ['pdfjs-dist'],
-          'pinyin': ['pinyin-pro'],
-          'qrcode': ['qrcode'],
-          'jsqr': ['jsqr'],
-          'canvas2svg': ['canvas2svg']
-          // element-plus 不在此列出，让按需引入自然拆分
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('/vue/') || id.includes('/vue-router/') || id.includes('/@vue/')) {
+              return 'vue-vendor'
+            }
+          }
+          // 其余交给 Rollup 自动分片（按动态 import 边界）
         }
       }
     }

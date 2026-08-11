@@ -3,6 +3,9 @@
  * 将 canvas2svg 生成的 SVG 转换为其他矢量格式
  * 支持：SVG / DXF / EPS
  * 所有转换纯前端实现，无需后端
+ *
+ * 曲线说明：SVG path 的 C/c（三次贝塞尔）、Q/q（二次贝塞尔）、S/s（平滑三次）、T/t（平滑二次）
+ * 用直线段采样近似（采样数由 segments 控制），DXF/EPS 因此为有损转换。
  */
 import C2S from 'canvas2svg'
 
@@ -33,9 +36,10 @@ export async function renderPageToSvg(page) {
  * @param {string} svgString - SVG 字符串
  * @param {number} width - 页面宽度
  * @param {number} height - 页面高度
+ * @param {number} [segments=16] - 贝塞尔曲线采样段数（精度）
  * @returns {string} DXF 文本
  */
-export function svgToDxf(svgString, width, height) {
+export function svgToDxf(svgString, width, height, segments = 16) {
   const parser = new DOMParser()
   const doc = parser.parseFromString(svgString, 'image/svg+xml')
   const svg = doc.documentElement
@@ -45,15 +49,13 @@ export function svgToDxf(svgString, width, height) {
   // DXF 坐标系原点在左下角，SVG 在左上角，需要翻转 Y 轴
   const flipY = (y) => height - y
 
-  // 解析 <path> 的 d 属性，提取 moveTo/lineTo
+  // 解析 <path> 的 d 属性
   const paths = svg.querySelectorAll('path')
   paths.forEach((path) => {
     const d = path.getAttribute('d')
     if (!d) return
-    const points = parsePathCommands(d)
+    const points = parsePathCommands(d, segments)
     if (points.length < 2) return
-
-    // 转为 DXF LWPOLYLINE 实体
     const vertices = points.map((p) => `${p.x.toFixed(2)},${flipY(p.y).toFixed(2)}`)
     entities.push(makeLwpolyline(vertices))
   })
@@ -75,7 +77,6 @@ export function svgToDxf(svgString, width, height) {
     const y = parseFloat(rect.getAttribute('y')) || 0
     const w = parseFloat(rect.getAttribute('width')) || 0
     const h = parseFloat(rect.getAttribute('height')) || 0
-    // 矩形转为四条线
     entities.push(makeLine(x, flipY(y), x + w, flipY(y)))
     entities.push(makeLine(x + w, flipY(y), x + w, flipY(y + h)))
     entities.push(makeLine(x + w, flipY(y + h), x, flipY(y + h)))
@@ -102,62 +103,193 @@ export function svgToDxf(svgString, width, height) {
 
 /**
  * 解析 SVG path 的 d 属性，提取所有点坐标
- * 支持 M/m (moveTo), L/l (lineTo), H/h, V/v, Z/z
+ * 支持：M/m (moveTo), L/l (lineTo), H/h, V/v, Z/z,
+ *       C/c (三次贝塞尔), Q/q (二次贝塞尔), S/s (平滑三次), T/t (平滑二次)
+ * 贝塞尔曲线用直线段采样近似（segments 段）。
+ * @param {string} d
+ * @param {number} [segments=16] - 每段曲线采样段数
+ * @returns {Array<{x:number,y:number}>}
  */
-function parsePathCommands(d) {
+function parsePathCommands(d, segments = 16) {
   const points = []
-  const regex = /([MLHVZmlhvz])\s*([\d\s.,eE+-]*)/g
+  const regex = /([MLHVZCSQTmlhvzcsqt])\s*([\d\s.,eE+-]*)/g
   let match
   let lastX = 0
   let lastY = 0
-  let cmd = ''
+  let prevCubicX = null // 上一个三次贝塞尔的第二控制点（绝对）
+  let prevCubicY = null
+  let prevQuadX = null // 上一个二次贝塞尔的控制点（绝对）
+  let prevQuadY = null
+  let prevIsCubic = false
+  let prevIsQuad = false
+
+  const ensureStart = () => {
+    // 若 points 为空，先压入当前点作为起点
+    if (points.length === 0) points.push({ x: lastX, y: lastY })
+  }
 
   while ((match = regex.exec(d)) !== null) {
     const command = match[1]
     const args = match[2].trim().split(/[\s,]+/).filter(Boolean).map(parseFloat)
+    const isUpper = command === command.toUpperCase()
+    const rel = !isUpper
 
-    switch (command) {
+    switch (command.toUpperCase()) {
       case 'M':
-      case 'L':
+      case 'L': {
         for (let i = 0; i < args.length - 1; i += 2) {
-          lastX = args[i]
-          lastY = args[i + 1]
+          if (rel && (command.toUpperCase() === 'M' || command.toUpperCase() === 'L')) {
+            // 小写相对
+            lastX += args[i]
+            lastY += args[i + 1]
+          } else {
+            lastX = args[i]
+            lastY = args[i + 1]
+          }
           points.push({ x: lastX, y: lastY })
         }
-        cmd = command
         break
-      case 'm':
-      case 'l':
-        for (let i = 0; i < args.length - 1; i += 2) {
-          lastX += args[i]
-          lastY += args[i + 1]
-          points.push({ x: lastX, y: lastY })
-        }
-        cmd = command
-        break
-      case 'H':
-        lastX = args[0]
+      }
+      case 'H': {
+        const v = args[0]
+        lastX = rel ? lastX + v : v
         points.push({ x: lastX, y: lastY })
         break
-      case 'h':
-        lastX += args[0]
+      }
+      case 'V': {
+        const v = args[0]
+        lastY = rel ? lastY + v : v
         points.push({ x: lastX, y: lastY })
         break
-      case 'V':
-        lastY = args[0]
-        points.push({ x: lastX, y: lastY })
-        break
-      case 'v':
-        lastY += args[0]
-        points.push({ x: lastX, y: lastY })
-        break
+      }
       case 'Z':
-      case 'z':
         // 闭合路径，不添加新点
         break
+      case 'C': {
+        // 三次贝塞尔：每 6 个参数一组 (c1x,c1y,c2x,c2y,x,y)
+        ensureStart()
+        for (let i = 0; i + 5 < args.length; i += 6) {
+          let c1x = args[i], c1y = args[i + 1]
+          let c2x = args[i + 2], c2y = args[i + 3]
+          let ex = args[i + 4], ey = args[i + 5]
+          if (rel) {
+            c1x += lastX; c1y += lastY
+            c2x += lastX; c2y += lastY
+            ex += lastX; ey += lastY
+          }
+          sampleCubic(
+            { x: lastX, y: lastY }, { x: c1x, y: c1y }, { x: c2x, y: c2y }, { x: ex, y: ey },
+            segments, points
+          )
+          lastX = ex; lastY = ey
+          prevCubicX = c2x; prevCubicY = c2y
+          prevIsCubic = true; prevIsQuad = false
+        }
+        break
+      }
+      case 'S': {
+        // 平滑三次：每 4 个参数一组 (c2x,c2y,x,y)，c1 = 上一三次曲线 c2 关于当前点的反射
+        ensureStart()
+        for (let i = 0; i + 3 < args.length; i += 4) {
+          let c2x = args[i], c2y = args[i + 1]
+          let ex = args[i + 2], ey = args[i + 3]
+          if (rel) {
+            c2x += lastX; c2y += lastY
+            ex += lastX; ey += lastY
+          }
+          let c1x, c1y
+          if (prevIsCubic && prevCubicX !== null) {
+            c1x = 2 * lastX - prevCubicX
+            c1y = 2 * lastY - prevCubicY
+          } else {
+            c1x = lastX; c1y = lastY
+          }
+          sampleCubic(
+            { x: lastX, y: lastY }, { x: c1x, y: c1y }, { x: c2x, y: c2y }, { x: ex, y: ey },
+            segments, points
+          )
+          lastX = ex; lastY = ey
+          prevCubicX = c2x; prevCubicY = c2y
+          prevIsCubic = true; prevIsQuad = false
+        }
+        break
+      }
+      case 'Q': {
+        // 二次贝塞尔：每 4 个参数一组 (c1x,c1y,x,y)
+        ensureStart()
+        for (let i = 0; i + 3 < args.length; i += 4) {
+          let c1x = args[i], c1y = args[i + 1]
+          let ex = args[i + 2], ey = args[i + 3]
+          if (rel) {
+            c1x += lastX; c1y += lastY
+            ex += lastX; ey += lastY
+          }
+          sampleQuad(
+            { x: lastX, y: lastY }, { x: c1x, y: c1y }, { x: ex, y: ey },
+            segments, points
+          )
+          lastX = ex; lastY = ey
+          prevQuadX = c1x; prevQuadY = c1y
+          prevIsQuad = true; prevIsCubic = false
+        }
+        break
+      }
+      case 'T': {
+        // 平滑二次：每 2 个参数一组 (x,y)，c1 = 上一二次曲线控制点关于当前点的反射
+        ensureStart()
+        for (let i = 0; i + 1 < args.length; i += 2) {
+          let ex = args[i], ey = args[i + 1]
+          if (rel) {
+            ex += lastX; ey += lastY
+          }
+          let c1x, c1y
+          if (prevIsQuad && prevQuadX !== null) {
+            c1x = 2 * lastX - prevQuadX
+            c1y = 2 * lastY - prevQuadY
+          } else {
+            c1x = lastX; c1y = lastY
+          }
+          sampleQuad(
+            { x: lastX, y: lastY }, { x: c1x, y: c1y }, { x: ex, y: ey },
+            segments, points
+          )
+          lastX = ex; lastY = ey
+          prevQuadX = c1x; prevQuadY = c1y
+          prevIsQuad = true; prevIsCubic = false
+        }
+        break
+      }
+    }
+
+    // 非曲线命令重置反射状态
+    if (!'CSQTcsqt'.includes(command)) {
+      prevIsCubic = false
+      prevIsQuad = false
     }
   }
   return points
+}
+
+/** 三次贝塞尔曲线采样（追加 segments 个点到 out，不含起点） */
+function sampleCubic(p0, p1, p2, p3, segments, out) {
+  for (let i = 1; i <= segments; i++) {
+    const t = i / segments
+    const mt = 1 - t
+    const x = mt * mt * mt * p0.x + 3 * mt * mt * t * p1.x + 3 * mt * t * t * p2.x + t * t * t * p3.x
+    const y = mt * mt * mt * p0.y + 3 * mt * mt * t * p1.y + 3 * mt * t * t * p2.y + t * t * t * p3.y
+    out.push({ x, y })
+  }
+}
+
+/** 二次贝塞尔曲线采样（追加 segments 个点到 out，不含起点） */
+function sampleQuad(p0, p1, p2, segments, out) {
+  for (let i = 1; i <= segments; i++) {
+    const t = i / segments
+    const mt = 1 - t
+    const x = mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x
+    const y = mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y
+    out.push({ x, y })
+  }
 }
 
 /** 生成 DXF LWPOLYLINE 实体 */
@@ -193,9 +325,10 @@ function buildDxf(entities, width, height) {
  * @param {string} svgString - SVG 字符串
  * @param {number} width - 页面宽度
  * @param {number} height - 页面高度
+ * @param {number} [segments=16] - 贝塞尔曲线采样段数（精度）
  * @returns {string} EPS 文本
  */
-export function svgToEps(svgString, width, height) {
+export function svgToEps(svgString, width, height, segments = 16) {
   const parser = new DOMParser()
   const doc = parser.parseFromString(svgString, 'image/svg+xml')
   const svg = doc.documentElement
@@ -209,7 +342,7 @@ export function svgToEps(svgString, width, height) {
   svg.querySelectorAll('path').forEach((path) => {
     const d = path.getAttribute('d')
     if (!d) return
-    const points = parsePathCommands(d)
+    const points = parsePathCommands(d, segments)
     if (points.length < 2) return
     body += 'newpath\n'
     body += `${points[0].x.toFixed(2)} ${flipY(points[0].y).toFixed(2)} moveto\n`

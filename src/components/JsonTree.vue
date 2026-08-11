@@ -2,7 +2,9 @@
   <span class="json-tree">
     <!-- 基本类型：直接渲染 -->
     <template v-if="isPrimitive">
-      <span :class="['leaf', leafClass]">{{ leafText }}</span>
+      <span :class="['leaf', leafClass, searchHit(leafText) ? 'search-hit' : '']"
+        :title="pathEnabled ? '点击复制路径：' + nodePath : ''"
+        @click="pathEnabled && notify(nodePath)">{{ leafText }}</span>
     </template>
 
     <!-- 对象 / 数组：可折叠 -->
@@ -28,13 +30,19 @@
             class="child"
             :style="{ paddingLeft: indentStr }"
           >
-            <span v-if="isObject" class="key">"{{ item.key }}"</span>
+            <span v-if="isObject"
+              :class="['key', searchHit(item.key) ? 'search-hit' : '']"
+              :title="pathEnabled ? '点击复制路径：' + childPath(item.key, idx) : ''"
+              @click="pathEnabled && notify(childPath(item.key, idx))">"{{ item.key }}"</span>
             <span v-if="isObject" class="colon">: </span>
             <JsonTree
               :ref="(el) => setChildRef(el, idx)"
               :data="item.value"
               :indent-size="indentSize"
               :default-expand="defaultExpand"
+              :search="search"
+              :node-path="childPath(item.key, idx)"
+              :path-enabled="pathEnabled"
             />
             <span v-if="idx < entries.length - 1" class="comma">,</span>
           </span>
@@ -57,7 +65,10 @@ import { ArrowRight } from '@element-plus/icons-vue'
 const props = defineProps({
   data: { type: null, required: true },
   indentSize: { type: Number, default: 2 },
-  defaultExpand: { type: Boolean, default: false }
+  defaultExpand: { type: Boolean, default: false },
+  search: { type: String, default: '' },
+  nodePath: { type: String, default: '' },
+  pathEnabled: { type: Boolean, default: false }
 })
 
 // 当前节点深度（根节点为 0），由父组件通过 provide/inject 传递
@@ -68,6 +79,9 @@ provide('jsonTreeDepth', computed(() => depth.value + 1))
 // 父级缩进（用于闭合括号回退一层）
 const parentIndent = computed(() => ' '.repeat(Math.max(0, depth.value * props.indentSize)))
 const indentStr = computed(() => ' '.repeat(props.indentSize))
+
+// 点击节点复制路径回调（由父组件 provide 注入，默认空操作）
+const notify = inject('__jsonTreeNotifyPath', () => {})
 
 // 折叠状态：对象/数组节点独立维护
 const expanded = ref(props.defaultExpand)
@@ -109,6 +123,24 @@ const leafClass = computed(() => {
   if (typeof v === 'boolean') return 'leaf-boolean'
   return ''
 })
+
+// 子节点路径：对象用 .key（或 ["key"]），数组用 [idx]
+function childPath(key, idx) {
+  const base = props.nodePath
+  if (isArray.value) {
+    return `${base}[${idx}]`
+  }
+  // 对象
+  const safe = /^[A-Za-z_$][\w$]*$/.test(key)
+  if (base === '') return safe ? key : `["${key}"]`
+  return safe ? `${base}.${key}` : `${base}["${key}"]`
+}
+
+// 命中搜索：大小写不敏感
+function searchHit(text) {
+  if (!props.search) return false
+  return String(text).toLowerCase().includes(props.search.toLowerCase())
+}
 
 function toggle() {
   expanded.value = !expanded.value
@@ -211,6 +243,7 @@ defineExpose({ setAll, toggle })
 
 .key {
   color: #409eff;
+  cursor: pointer;
 }
 
 .colon {
@@ -219,6 +252,10 @@ defineExpose({ setAll, toggle })
 
 .comma {
   color: #303133;
+}
+
+.leaf {
+  cursor: pointer;
 }
 
 .leaf-string {
@@ -235,5 +272,12 @@ defineExpose({ setAll, toggle })
 
 .leaf-null {
   color: #909399;
+}
+
+/* 搜索命中高亮 */
+.search-hit {
+  background: #fff3a8;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px #f0d00055;
 }
 </style>
